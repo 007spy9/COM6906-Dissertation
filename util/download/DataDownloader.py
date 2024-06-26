@@ -8,7 +8,7 @@ class DataDownloader:
     def __init__(self):
         self.dataset_list = {
             'har70plus': 'https://www.archive.ics.uci.edu/static/public/780/har70.zip',
-            'har40': 'https://archive.ics.uci.edu/static/public/779/harth.zip',
+            'harth': 'https://archive.ics.uci.edu/static/public/779/harth.zip',
         }
 
     def get_dataset_list(self):
