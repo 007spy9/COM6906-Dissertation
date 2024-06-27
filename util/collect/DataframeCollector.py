@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 import pandas as pd
 
 
@@ -23,8 +24,17 @@ class DataframeCollector:
         print("Loaded ", len(self.dataframes), " dataframes")
         print("Concatenating the dataframes")
 
+        # As there are multiple dataframes, and the data is indexed by timestamp, it is possible that the dataframes
+        # have overlapping timestamps. In order to account for this, a new index is created that will be unique for each
+        # row in the concatenated dataframe.
+        prev_max = 0
+        for i, df in enumerate(self.dataframes):
+            number = np.arange(prev_max, prev_max + len(df))
+            prev_max += len(df)
+            df['record_num'] = number
+
         # Once all the dataframes are loaded, concatenate them into a single dataframe
-        self.collected_data = pd.concat(self.dataframes)
+        self.collected_data = pd.concat(self.dataframes, ignore_index=True)
         return self.collected_data
 
     def get_collected_data(self):
@@ -70,18 +80,18 @@ if __name__ == '__main__':
     print("Clearing...")
     collector.clear_dataframes()
 
-    print(collector.get_dataframes_count())
-    print(collector.get_dataframes_shape())
-    print(collector.get_dataframes_columns())
-    print(collector.get_collected_data_shape())
-
-    print("Testing with the HARTH dataset")
-    collector.load_full_dataset('../../data/harth')
-    print(collector.get_collected_data().head())
-    print(collector.get_collected_data().shape)
-
-    print(collector.get_dataframes_count())
-    print(collector.get_dataframes_shape())
-    print(collector.get_dataframes_columns())
-
-    collector.clear_dataframes()
+    # print(collector.get_dataframes_count())
+    # print(collector.get_dataframes_shape())
+    # print(collector.get_dataframes_columns())
+    # print(collector.get_collected_data_shape())
+    #
+    # print("Testing with the HARTH dataset")
+    # collector.load_full_dataset('../../data/harth')
+    # print(collector.get_collected_data().head())
+    # print(collector.get_collected_data().shape)
+    #
+    # print(collector.get_dataframes_count())
+    # print(collector.get_dataframes_shape())
+    # print(collector.get_dataframes_columns())
+    #
+    # collector.clear_dataframes()
