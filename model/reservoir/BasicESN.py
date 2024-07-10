@@ -1,51 +1,67 @@
-import numpy as np
 import tensorflow as tf
-import torch
-import torch.nn as nn
+import numpy as np
+import sklearn as sk
+from sklearn.linear_model import Ridge
 
-from .RecurrentUnit import RecurrentUnit
-
-#https://github.com/stefanonardo/pytorch-esn
-
-class BasicESN(nn.Module):
-
-    def __init__(self, input_size, reservoir_size, output_size, spectral_radius=0.9, leakage_rate=0.3):
-        super(BasicESN, self).__init__()
-
-        self.input_size = input_size
-        self.reservoir_size = reservoir_size
-        self.output_size = output_size
-
+class BasicESN:
+    def __init__(self, leakage_rate, spectral_radius, gamma, n_neurons, W_in):
+        self.leakage_rate = tf.Variable(leakage_rate, trainable=False, dtype=tf.float32)
         self.spectral_radius = spectral_radius
-        self.leakage_rate = leakage_rate
+        self.gamma = gamma
+        self.N = n_neurons
+        self.W_in = W_in
 
-        self.activation = 'tanh'
+        self.W_res = np.random.uniform(-1, 1, (self.N, self.N))
 
-        self.input_weights = nn.Parameter(torch.randn(reservoir_size, input_size) * 0.1)
-        self.reservoir_weights = nn.Parameter(torch.randn(reservoir_size, reservoir_size) * 0.1)
-        self.output_weights = nn.Parameter(torch.randn(output_size, reservoir_size) * 0.1)
+        res_eigenvalues = np.linalg.eigvals(self.W_res)
 
-        #To start, the readout layer will be a linear layer
-        self.readout = nn.Linear(reservoir_size, output_size)
+        # Scale the reservoir weights
+        self.W_res /= np.max(np.abs(res_eigenvalues))
 
-        self.reservoir = RecurrentUnit(input_size, reservoir_size, output_size, spectral_radius, leakage_rate)
+        # To begin with, the readout layer is a Ridge from sklearn
+        self.readout = Ridge(alpha=1.0)
 
-    def fit(self, input, target):
-        # The only fitting to be done is for the linear readout layer
-        # This requires a closed-form solution of linear regression
-        # This can be solved by minimising the mean squared error between the target and the output
-        # This can be done using the normal equation
-        W = np.dot(np.linalg.pinv(input), target)
-        self.readout.weight = nn.Parameter(torch.Tensor(W))
+        self.previous_states = []
 
-    def forward(self, input, hidden=None):
-        with torch.no_grad():
-            # Call the reservoir to compute the hidden state
-            hidden = self.reservoir(input, hidden)
+    def compute_reservoir_state(self, x):
+        # Initialize the reservoir state
+        # Define a previous_states list to store the state of the reservoir at each time step
+        self.previous_states = []
+        state = np.zeros((self.N, 1))
 
-            with torch.enable_grad():
-                # Call the readout layer to map the hidden state to the output
-                hidden = self.readout(hidden)
+        for i in range(x.shape[0]):
+            # Compute the reservoir state using the equation
+            # h(t+1) = h(t) * leakage_rate  + (1 - leakage_rate) * tanh((gamma * W_in * x(t)) + (spectral_radius * W_res * h(t)) + bias)
+            non_linear = np.tanh((self.gamma * self.W_in * x[i]) + (self.spectral_radius * self.W_res @ state))
 
-        return hidden
+            state = (state * self.leakage_rate) + ((1 - self.leakage_rate) * non_linear)
 
+            self.previous_states.append(state)
+
+        # Flatten the previous_states list to a 2D array of shape (n_samples, n_neurons)
+        self.previous_states = np.array(self.previous_states).reshape(x.shape[0], self.N)
+
+        return self.previous_states
+
+    def forward(self, x):
+        # Initialize the output
+        y = tf.zeros((1, 1), dtype=tf.float32)
+
+        # Compute the reservoir state
+        state = self.compute_reservoir_state(x)
+
+        # Compute the output from the readout layer
+        y = self.readout.predict(state)
+
+        return y
+
+    def get_state_history(self):
+        return self.previous_states
+
+    def fit(self, x, y):
+        # Compute the reservoir state
+        state = self.compute_reservoir_state(x)
+
+        # Fit the readout layer
+        # TODO: Add class weights
+        self.readout.fit(state, y)
