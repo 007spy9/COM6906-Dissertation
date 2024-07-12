@@ -1,20 +1,9 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import tensorflow as tf
 import numpy as np
 import sklearn as sk
+from sklearn.linear_model import Ridge
 
-
-#https://github.com/stefanonardo/pytorch-esn
-# Accessed (2024-07-08)
-
-class RecurrentUnit():
-    '''
-    Recurrent unit for the reservoir computing model.
-    In this instance, the reservoir unit is a simple RNN cell.
-    '''
-
+class HierarchyESN:
     def __init__(self, leakage_rate, spectral_radius, gamma, n_neurons, W_in):
         self.leakage_rate = tf.Variable(leakage_rate, trainable=False, dtype=tf.float32)
         self.spectral_radius = spectral_radius
@@ -28,6 +17,9 @@ class RecurrentUnit():
 
         # Scale the reservoir weights
         self.W_res /= np.max(np.abs(res_eigenvalues))
+
+        # To begin with, the readout layer is a Ridge from sklearn
+        self.readout = Ridge(alpha=1.0)
 
         self.previous_states = []
 
@@ -51,5 +43,25 @@ class RecurrentUnit():
 
         return self.previous_states
 
+    def forward(self, x):
+        # Initialize the output
+        y = tf.zeros((1, 1), dtype=tf.float32)
+
+        # Compute the reservoir state
+        state = self.compute_reservoir_state(x)
+
+        # Compute the output from the readout layer
+        y = self.readout.predict(state)
+
+        return y
+
     def get_state_history(self):
         return self.previous_states
+
+    def fit(self, x, y):
+        # Compute the reservoir state
+        state = self.compute_reservoir_state(x)
+
+        # Fit the readout layer
+        # TODO: Add class weights
+        self.readout.fit(state, y)
