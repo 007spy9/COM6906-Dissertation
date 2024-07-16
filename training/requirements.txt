@@ -2,3 +2,5 @@ scikit-learn
 torch
 tqdm
 tensorflow
+seaborn
+hyperopt
