@@ -4,3 +4,5 @@ tqdm
 tensorflow
 seaborn
 hyperopt
+pymongo
+gpyopt

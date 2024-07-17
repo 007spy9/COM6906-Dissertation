@@ -87,8 +87,8 @@ class BasicESN:
         # Compute the reservoir state
         state = self.compute_reservoir_state(x)
 
-        print(f"Shape of state before fitting: {state.shape}")
-        print(f"Shape of y before fitting: {y.shape}")
+        # print(f"Shape of state before fitting: {state.shape}")
+        # print(f"Shape of y before fitting: {y.shape}")
 
         # Fit the readout layer
         # TODO: Add class weights
