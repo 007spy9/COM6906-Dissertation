@@ -37,10 +37,14 @@ class BasicESNCuda:
         for i in range(x.shape[0]):
             # Compute the reservoir state using the equation
             # h(t+1) = h(t) * leakage_rate  + (1 - leakage_rate) * tanh((gamma * W_in * x(t)) + (spectral_radius * W_res * h(t)) + bias)
-            non_linear = np.tanh(
-                (self.gamma * self.W_in @ x[i].reshape(-1, 1)) + (self.spectral_radius * self.W_res @ state))
+            # non_linear = np.tanh(
+            #     (self.gamma * self.W_in @ x[i].reshape(-1, 1)) + (self.spectral_radius * self.W_res @ state))
 
-            state = (state * self.leakage_rate) + ((1 - self.leakage_rate) * non_linear)
+            non_linear = tf.tanh(
+                (self.gamma * tf.linalg.matmul(self.W_in, x[i].reshape(-1, 1))) + (self.spectral_radius * tf.linalg.matmul(self.W_res, state)))
+
+            #state = (state * self.leakage_rate) + ((1 - self.leakage_rate) * non_linear)
+            state = tf.math.add(tf.math.multiply(state, self.leakage_rate), tf.math.multiply((1 - self.leakage_rate), non_linear))
 
             # Append the state after ravel
             # Tensorflow does not support the ravel method, so we will use numpy
