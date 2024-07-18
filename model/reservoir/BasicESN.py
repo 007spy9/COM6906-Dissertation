@@ -42,7 +42,7 @@ class BasicESN:
 
         self.previous_states = []
 
-        print(f"BasicESN initialised with leakage_rate: {leakage_rate}, spectral_radius: {spectral_radius}, gamma: {gamma}, n_neurons: {n_neurons}")
+        print(f"BasicESN initialised with leakage_rate: {leakage_rate}, spectral_radius: {spectral_radius}, gamma: {gamma}, n_neurons: {n_neurons}, sparsity: {sparsity}")
 
     def recurrent_unit(self, x, previous_states, pbar=None):
         state = np.zeros((self.N, 1))
@@ -76,8 +76,8 @@ class BasicESN:
             self.recurrent_unit(x, previous_states)
 
         # Flatten the previous_states list to a 2D array of shape (n_samples, n_neurons)
-        self.previous_states = np.array(self.previous_states)
-        print(f"Shape of previous_states: {self.previous_states.shape}")
+        previous_states = np.array(previous_states)
+        print(f"Shape of previous_states: {previous_states.shape}")
 
         return previous_states
 

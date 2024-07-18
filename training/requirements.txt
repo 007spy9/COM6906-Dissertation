@@ -1,7 +1,9 @@
 scikit-learn
 torch
+torchvision
+torchaudio
 tqdm
-tensorflow
+tensorflow<2.11
 seaborn
 hyperopt
 pymongo
