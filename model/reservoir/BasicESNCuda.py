@@ -6,7 +6,7 @@ from tqdm import tqdm
 import torch
 
 class BasicESNCuda:
-    def __init__(self, leakage_rate, spectral_radius, gamma, n_neurons, W_in, sparsity, is_optimising=False):
+    def __init__(self, leakage_rate, spectral_radius, gamma, n_neurons, W_in, sparsity, class_weights=None, is_optimising=False):
         print(tf.config.list_physical_devices('GPU'))
         print(f"Is CUDA available: {torch.cuda.is_available()}")
 
@@ -18,6 +18,11 @@ class BasicESNCuda:
         self.N = n_neurons
         self.W_in = torch.tensor(W_in, dtype=torch.float32, device='cuda')
         self.sparsity = sparsity
+
+        if class_weights is not None:
+            self.class_weights = torch.tensor(class_weights, dtype=torch.float32, device='cuda')
+        else:
+            self.class_weights = None
 
         self.is_optimising = is_optimising
 
@@ -37,6 +42,8 @@ class BasicESNCuda:
         self.readout = Ridge(alpha=1.0)
 
         self.previous_states = []
+
+        self.bar_update_step = 10000
 
         print(f"BasicESN initialised with leakage_rate: {leakage_rate}, spectral_radius: {spectral_radius}, gamma: {gamma}, n_neurons: {n_neurons}, sparsity: {sparsity}")
 
@@ -80,9 +87,10 @@ class BasicESNCuda:
                 previous_states_cuda[i] = state.ravel()
 
                 if pbar:
-                    # Update every 1000 steps
-                    if i % 1000 == 0:
-                        pbar.update(1000)
+                    # Update every 10000 steps
+
+                    if i % self.bar_update_step == 0:
+                        pbar.update(self.bar_update_step)
 
         previous_states = previous_states_cuda.cpu().numpy()
 
@@ -125,7 +133,18 @@ class BasicESNCuda:
     def get_state_history(self):
         return self.previous_states
 
-    def fit(self, x, y, class_weights=None, x_val=None, y_val=None, class_weights_val=None):
+    def fit(self, x, y, x_val=None, y_val=None):
+        if self.class_weights is not None:
+            class_weights = self.class_weights.cpu().numpy()
+
+            # We need a list the same length as the number of samples with the class weights
+            # y and y_val are one-hot encoded
+            y_class = np.argmax(y, axis=1)
+            y_val_class = np.argmax(y_val, axis=1)
+
+            train_weights = [class_weights[i] for i in y_class]
+            val_weights = [class_weights[i] for i in y_val_class]
+
         # Compute the reservoir state
         state = self.compute_reservoir_state(x)
 
@@ -138,7 +157,8 @@ class BasicESNCuda:
             # print(f"Shape of state before fitting: {state.shape}")
             # print(f"Shape of y before fitting: {y.shape}")
 
-            alpha_vals = np.logspace(0, 5, 10)
+            # Generate a log space between 0 and 5
+            alpha_vals = np.logspace(-5, 2, num=10)
 
             scores = []
 
@@ -146,9 +166,14 @@ class BasicESNCuda:
                 temp_readout = Ridge(alpha=alpha)
 
                 # Fit the readout layer
-                temp_readout.fit(state, y)
+                if self.class_weights is not None:
+                    temp_readout.fit(state, y, sample_weight=train_weights)
 
-                score = temp_readout.score(val_state, y_val)
+                    score = temp_readout.score(val_state, y_val, sample_weight=val_weights)
+                else:
+                    temp_readout.fit(state, y)
+
+                    score = temp_readout.score(val_state, y_val)
 
                 scores.append(score)
 
@@ -160,8 +185,13 @@ class BasicESNCuda:
 
             self.readout = Ridge(alpha=best_alpha)
 
+
+        # Once the readout layer is fitted, or if no validation data is provided, fit the 'final' readout layer
+
+        # Fit the readout layer
+        if self.class_weights is not None:
+            self.readout.fit(state, y, sample_weight=train_weights)
+        else:
             self.readout.fit(state, y)
 
-        else:
-            # Fit the readout layer
-            self.readout.fit(state, y)
+        print("Readout layer fitted.")

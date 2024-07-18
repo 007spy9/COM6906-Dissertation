@@ -4,7 +4,7 @@ import sklearn as sk
 from sklearn.linear_model import Ridge
 from tqdm import tqdm
 
-
+# This class is deprecated and is succeeded by the BasicESNCuda class
 class BasicESN:
     def __init__(self, leakage_rate, spectral_radius, gamma, n_neurons, W_in, sparsity, is_optimising=False):
         '''
@@ -100,7 +100,7 @@ class BasicESN:
     def get_state_history(self):
         return self.previous_states
 
-    def fit(self, x, y, class_weights=None, x_val=None, y_val=None, class_weights_val=None):
+    def fit(self, x, y, class_weights=None, x_val=None, y_val=None):
         # Compute the reservoir state
         state = self.compute_reservoir_state(x)
 
