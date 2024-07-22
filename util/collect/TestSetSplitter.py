@@ -118,6 +118,7 @@ class TestSetSplitter:
 
                     # The validation data should be removed from the training data
                     train_data = train_data[:-int(self.val_split * train_len)]
+
                 else:
                     train_data.extend(slices[:-int(self.test_split * len(slices)) - int(self.val_split * len(slices))])
 
