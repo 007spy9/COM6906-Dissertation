@@ -35,12 +35,12 @@ class BinnedTestSetSplitter:
         for i in range(0, len(features), chunk_size):
             # Check if the chunk is the last chunk
             if i + chunk_size > len(features):
-                # If the chunk is the last chunk, then the chunk should be padded with zeros
+                # If the chunk is the last chunk, then the chunk should be padded with the last value before the padding, not zeros
                 padding = chunk_size - (len(features) % chunk_size)
-                chunk = np.concatenate([features[i:], np.zeros((padding, features.shape[1]))])
+                chunk = np.concatenate([features[i:], np.tile(features[-1], (padding, 1))])
 
-                # The labels should also be padded with zeros
-                label_chunk = np.concatenate([labels[i:], np.zeros(padding)])
+                # The labels should also be padded with the last value before the padding
+                label_chunk = np.concatenate([labels[i:], np.tile(labels[-1], padding)])
             else:
                 chunk = features[i:i + chunk_size]
                 label_chunk = labels[i:i + chunk_size]
@@ -67,13 +67,11 @@ class BinnedTestSetSplitter:
         # Split the dataset into training and testing sets
         train_features, test_features, train_labels, test_labels = train_test_split(features, labels,
                                                                                     test_size=self.test_size,
-                                                                                    random_state=self.seed,
-                                                                                    stratify=stratify_labels)
+                                                                                    random_state=self.seed)
         # Split the training set into training and validation sets
         train_features, val_features, train_labels, val_labels = train_test_split(train_features, train_labels,
                                                                                   test_size=self.val_size,
-                                                                                  random_state=self.seed,
-                                                                                    stratify=train_labels[:, 0])
+                                                                                  random_state=self.seed)
 
         # Now that the data has been split into training, testing and validation sets, the data should be reshaped back into
         # the original shape
