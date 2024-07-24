@@ -4,6 +4,7 @@ import sklearn as sk
 from sklearn.linear_model import Ridge
 from tqdm import tqdm
 import torch
+import gc
 
 class BasicESNCuda:
     def __init__(self, leakage_rate, spectral_radius, gamma, n_neurons, W_in, sparsity, class_weights=None, is_optimising=False):
@@ -78,21 +79,29 @@ class BasicESNCuda:
         x_cuda = torch.tensor(x, dtype=torch.float32, device='cuda')
 
         with torch.cuda.device(0):
-            for i in range(x.shape[0]):
-                non_linear = torch.tanh(
-                    (self.gamma * torch.matmul(self.W_in, x_cuda[i].reshape(-1, 1))) + (self.spectral_radius * torch.matmul(self.W_res, state)))
+            with torch.no_grad():
+                for i in range(x.shape[0]):
+                    non_linear = torch.tanh(
+                        (self.gamma * torch.matmul(self.W_in, x_cuda[i].reshape(-1, 1))) + (self.spectral_radius * torch.matmul(self.W_res, state)))
 
-                state = torch.add(torch.mul(state, self.leakage_rate), torch.mul((1 - self.leakage_rate), non_linear))
+                    state = torch.add(torch.mul(state, self.leakage_rate), torch.mul((1 - self.leakage_rate), non_linear))
 
-                previous_states_cuda[i] = state.ravel()
+                    previous_states_cuda[i] = state.ravel()
 
-                if pbar:
-                    # Update every 10000 steps
+                    if pbar:
+                        # Update every 10000 steps
 
-                    if i % self.bar_update_step == 0:
-                        pbar.update(self.bar_update_step)
+                        if i % self.bar_update_step == 0:
+                            pbar.update(self.bar_update_step)
 
         previous_states = previous_states_cuda.cpu().numpy()
+
+        del previous_states_cuda
+        del state
+        del x_cuda
+
+        gc.collect()
+        torch.cuda.empty_cache()
 
         return previous_states
 
