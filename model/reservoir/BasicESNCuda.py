@@ -73,7 +73,7 @@ class BasicESNCuda:
         # Let's rewrite the above code using a cuda implementation
         state = torch.zeros((self.N, 1), device='cuda')
 
-        #previous_states_cuda = torch.zeros((x.shape[0], self.N), device='cuda')
+        previous_states_cuda = torch.zeros((x.shape[0], self.N), device='cuda')
         previous_states = np.zeros((x.shape[0], self.N))
 
         x_cuda = torch.tensor(x, dtype=torch.float32, device='cuda')
@@ -86,8 +86,7 @@ class BasicESNCuda:
 
                     state = torch.add(torch.mul(state, self.leakage_rate), torch.mul((1 - self.leakage_rate), non_linear))
 
-                    #previous_states_cuda[i] = state.ravel()
-                    previous_states[i] = state.cpu().numpy().ravel()
+                    previous_states_cuda[i] = state.ravel()
 
                     if pbar:
                         # Update every 10000 steps
@@ -95,7 +94,7 @@ class BasicESNCuda:
                         if i % self.bar_update_step == 0:
                             pbar.update(self.bar_update_step)
 
-        #previous_states = previous_states_cuda.cpu().numpy()
+        previous_states = previous_states_cuda.cpu().numpy()
 
         del previous_states_cuda
         del state
