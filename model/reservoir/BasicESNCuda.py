@@ -94,7 +94,11 @@ class BasicESNCuda:
                         # Update every 10000 steps
 
                         if i % self.bar_update_step == 0:
-                            pbar.update(self.bar_update_step)
+                            #  If i is within the last bar_update_step steps, update the progress bar by the remaining steps
+                            if i >= x.shape[0] - self.bar_update_step:
+                                pbar.update(x.shape[0] - i)
+                            else:
+                                pbar.update(self.bar_update_step)
 
         previous_states = previous_states_cuda.cpu().numpy()
 
