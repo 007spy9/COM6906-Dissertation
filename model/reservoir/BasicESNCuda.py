@@ -70,6 +70,8 @@ class BasicESNCuda:
         #     if pbar:
         #         pbar.update(1)
 
+        # x is in the shape (n_chunks, chunk_size, n_features)
+
         # Let's rewrite the above code using a cuda implementation
         state = torch.zeros((self.N, 1), device='cuda')
 
