@@ -119,13 +119,13 @@ class DatasetPreparation:
         # X/Y Split
         # --------------------------
         x_train = train_df[input_columns].values
-        y_train = train_df[output_columns].values
+        y_train = train_df[output_columns].values.ravel()
 
         x_val = val_df[input_columns].values
-        y_val = val_df[output_columns].values
+        y_val = val_df[output_columns].values.ravel()
 
         x_test = test_df[input_columns].values
-        y_test = test_df[output_columns].values
+        y_test = test_df[output_columns].values.ravel()
 
         print(f"X_train shape: {x_train.shape}, Y_train shape: {y_train.shape}")
         print(f"X_val shape: {x_val.shape}, Y_val shape: {y_val.shape}")
@@ -144,15 +144,15 @@ class DatasetPreparation:
         # Encode the labels
         encoder = OneHotEncoder(categories='auto')
 
-        encoder.fit(y_train)
+        encoder.fit(y_train.reshape(-1, 1))
 
-        y_train_encoded = encoder.transform(y_train)
-        y_val_encoded = encoder.transform(y_val)
-        y_test_encoded = encoder.transform(y_test)
+        y_train_encoded = encoder.transform(y_train.reshape(-1, 1))
+        y_val_encoded = encoder.transform(y_val.reshape(-1, 1))
+        y_test_encoded = encoder.transform(y_test.reshape(-1, 1))
 
-        self.y_train_encoded = y_train_encoded
-        self.y_val_encoded = y_val_encoded
-        self.y_test_encoded = y_test_encoded
+        self.y_train_encoded = y_train_encoded.toarray()
+        self.y_val_encoded = y_val_encoded.toarray()
+        self.y_test_encoded = y_test_encoded.toarray()
 
         print(f"Y_train encoded shape: {y_train_encoded.shape}")
         print(f"Y_val encoded shape: {y_val_encoded.shape}")

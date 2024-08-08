@@ -1,7 +1,10 @@
 import numpy as np
 
 
-def generate_input_weights(n_neurons, n_features, density, method):
+def generate_input_weights(n_neurons, n_features, density, method, seed=None):
+    if seed is not None:
+        np.random.seed(seed)
+
     if method == '0/1':
         input_weights = np.random.rand(n_neurons, n_features) < density
     elif method == 'normal':

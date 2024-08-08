@@ -7,11 +7,15 @@ import torch
 import gc
 
 class BasicESNCuda:
-    def __init__(self, leakage_rate, spectral_radius, gamma, n_neurons, W_in, sparsity, class_weights=None, is_optimising=False):
+    def __init__(self, leakage_rate, spectral_radius, gamma, n_neurons, W_in, sparsity, class_weights=None, is_optimising=False, seed=None):
         print(tf.config.list_physical_devices('GPU'))
         print(f"Is CUDA available: {torch.cuda.is_available()}")
 
         self.is_cuda = torch.cuda.is_available()
+
+        if seed is not None:
+            torch.manual_seed(seed)
+            np.random.seed(seed)
 
         self.leakage_rate = torch.tensor(leakage_rate, dtype=torch.float32, device='cuda')
         self.spectral_radius = torch.tensor(spectral_radius, dtype=torch.float32, device='cuda')

@@ -1,3 +1,5 @@
+import gc
+
 import numpy as np
 
 
@@ -13,6 +15,10 @@ class DataPreprocessor:
         :param y_data: The labels for the data
         :return: A tuple of the buffered x data and the labels (x_data, y_data)
         '''
+
+        #print(f"X data shape: {x_data.shape}")
+        #print(f"Y data shape: {y_data.shape}")
+
         temp_x_data = x_data.copy()
         temp_y_data = y_data.copy()
 
@@ -32,18 +38,22 @@ class DataPreprocessor:
         # The shape of the labels is (n_samples, n_classes), we will reshape it to (n_samples//window_size, n_classes * window_size)
 
         # Similar to the features, we will repeat the last label until it fits
+        #print(f"Y data shape: {temp_y_data.shape}")
         n_samples = temp_y_data.shape[0]
-        n_classes = temp_x_data.shape[1]
+        n_classes = temp_y_data.shape[1]
+
 
         remainder = n_samples % window_size
         if remainder != 0:
-            temp_y_data = np.concatenate(
-                [temp_y_data, np.repeat(temp_y_data[-1][np.newaxis, :], window_size - remainder, axis=0)], axis=0)
+            temp_y_data = np.concatenate([temp_y_data, np.repeat(temp_y_data[-1][np.newaxis, :], window_size - remainder, axis=0)], axis=0)
+
 
         y_data_buffered = np.array(
             [temp_y_data[i:i + window_size].flatten() for i in range(0, temp_y_data.shape[0], window_size)])
 
         print(f"Buffered data shape: {X_data_buffered.shape}, {y_data_buffered.shape}")
+
+        gc.collect()
 
         return X_data_buffered, y_data_buffered
 
@@ -102,23 +112,25 @@ class DataPreprocessor:
 
         return fourier_dataset
 
-    def pipeline(self, step_names, x_data, y_data):
+    def pipeline(self, step_names, x_data, y_data, params):
         '''
         Run a pipeline of data preprocessing steps. As defined in the step_names list. Where each step is a string representing the name of the method to be called.
         :param step_names: A list of strings representing the names of the methods to be called
+        :param x_data: The features that are to be processed
+        :param y_data: The labels for the data
+        :param params: A list of parameters to be passed to the methods (should be the same length as step_names)
         :return: A tuple of the processed x data and the labels (x_data, y_data)
         '''
         temp_x_data = x_data.copy()
         temp_y_data = y_data.copy()
 
-        for step in step_names:
-            print(f"Running step: {step}")
+        for i, step in enumerate(step_names):
             if step == 'buffered_windows':
-                temp_x_data, temp_y_data = self.buffered_windows(10, temp_x_data, temp_y_data)
+                temp_x_data, temp_y_data = self.buffered_windows(params[i], temp_x_data, temp_y_data)
             elif step == 'exponential_moving_average':
-                temp_x_data, temp_y_data = self.exponential_moving_average(0.9, temp_x_data, temp_y_data)
+                temp_x_data, temp_y_data = self.exponential_moving_average(params[i], temp_x_data, temp_y_data)
             elif step == 'fourier_smoothing':
-                temp_x_data = self.fourier_smoothing(temp_x_data)
+                temp_x_data = self.fourier_smoothing(temp_x_data, params[i])
 
         return temp_x_data, temp_y_data
 
