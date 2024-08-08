@@ -8,11 +8,15 @@ from tqdm import tqdm
 import torch
 
 class HierarchyESNCuda:
-    def __init__(self, leakage_rate_1, spectral_radius_1, gamma_1, n_neurons_1, W_in_1, leakage_rate_2, spectral_radius_2, gamma_2, n_neurons_2, W_in_2, class_weights=None, is_optimising=False):
+    def __init__(self, leakage_rate_1, spectral_radius_1, gamma_1, n_neurons_1, W_in_1, leakage_rate_2, spectral_radius_2, gamma_2, n_neurons_2, W_in_2, class_weights=None, is_optimising=False, seed=None):
         print(tf.config.list_physical_devices('GPU'))
         print(f"Is CUDA available: {torch.cuda.is_available()}")
 
         self.is_cuda = torch.cuda.is_available()
+
+        if seed is not None:
+            torch.manual_seed(seed)
+            np.random.seed(seed)
 
         self.is_optimising = is_optimising
 
@@ -26,7 +30,7 @@ class HierarchyESNCuda:
         self.leakage_rate_1 = torch.tensor(leakage_rate_1, dtype=torch.float32, device='cuda')
         self.spectral_radius_1 = torch.tensor(spectral_radius_1, dtype=torch.float32, device='cuda')
         self.gamma_1 = torch.tensor(gamma_1, dtype=torch.float32, device='cuda')
-        self.N_1 = torch.tensor(n_neurons_1, dtype=torch.float32, device='cuda')
+        self.N_1 = n_neurons_1
         self.W_in_1 = torch.tensor(W_in_1, dtype=torch.float32, device='cuda')
 
         W_res_temp_1 = np.random.uniform(-1, 1, (n_neurons_1, n_neurons_1))
@@ -41,7 +45,7 @@ class HierarchyESNCuda:
         self.leakage_rate_2 = torch.tensor(leakage_rate_2, dtype=torch.float32, device='cuda')
         self.spectral_radius_2 = torch.tensor(spectral_radius_2, dtype=torch.float32, device='cuda')
         self.gamma_2 = torch.tensor(gamma_2, dtype=torch.float32, device='cuda')
-        self.N_2 = torch.tensor(n_neurons_2, dtype=torch.float32, device='cuda')
+        self.N_2 = n_neurons_2
         self.W_in_2 = torch.tensor(W_in_2, dtype=torch.float32, device='cuda')
 
         W_res_temp_2 = np.random.uniform(-1, 1, (n_neurons_2, n_neurons_2))
@@ -78,7 +82,7 @@ class HierarchyESNCuda:
         x_cuda = torch.tensor(x, dtype=torch.float32, device='cuda')
 
         with torch.cuda.device(0):
-            with torch.no_grad:
+            with torch.no_grad():
                 for i in range(x.shape[0]):
                     # Compute the reservoir state. As this is a hierarchical ESN, we will have two reservoirs
                     # The hidden state of the first reservoir will be computed as follows:
@@ -88,9 +92,9 @@ class HierarchyESNCuda:
                     # h_2(t+1) = h_2(t) * leakage_rate_2  + (1 - leakage_rate_2) * tanh((gamma_2 * W_in_2 * x(t)) + (spectral_radius_2 * W_res_2 * h_2(t)) + (W_12 * h_1(t)) + bias_2)
 
                     #non_linear_1 = np.tanh((self.gamma_1 * self.W_in_1 @ x[i].reshape(-1, 1)) + (self.spectral_radius_1 * self.W_res_1 @ state1))
-                    non_linear_1 = torch.tanh((self.gamma_1 * torch.matmul(self.W_in_1, x_cuda[i].reshape(-1, 1))) + (self.spectral_radius_1 * torch.matmul(self.W_res_1, state_1)))
+                    non_linear_1 = torch.tanh(torch.add((torch.mul(self.gamma_1, torch.matmul(self.W_in_1, x_cuda[i].reshape(-1, 1)))), (torch.mul(self.spectral_radius_1, torch.matmul(self.W_res_1, state_1)))))
                     #non_linear_2 = np.tanh((self.gamma_2 * self.W_in_2 @ x[i].reshape(-1, 1)) + (self.spectral_radius_2 * self.W_res_2 @ state2) + (self.W_12 @ state1))
-                    non_linear_2 = torch.tanh((self.gamma_2 * torch.matmul(self.W_in_2, x_cuda[i].reshape(-1, 1))) + (self.spectral_radius_2 * torch.matmul(self.W_res_2, state_2)) + (torch.matmul(self.W_12, state_1)))
+                    non_linear_2 = torch.tanh(torch.add(torch.add(torch.mul(self.gamma_2, torch.matmul(self.W_in_2, x_cuda[i].reshape(-1, 1))), torch.mul(self.spectral_radius_2, torch.matmul(self.W_res_2, state_2))), torch.matmul(self.W_12, state_1)))
 
                     #state_1 = (state1 * self.leakage_rate_1) + ((1 - self.leakage_rate_1) * non_linear_1)
                     state_1 = torch.add(torch.mul(state_1, self.leakage_rate_1), torch.mul((1 - self.leakage_rate_1), non_linear_1))
