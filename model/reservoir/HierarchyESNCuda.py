@@ -58,10 +58,14 @@ class HierarchyESNCuda:
 
         # Now, we also need to prepare the connectivity matrix between the two reservoirs
         # This matrix will be of shape (n_neurons_1, n_neurons_2), and will be randomly initialized from a uniform distribution
-        W_12_temp = np.random.uniform(-1, 1, (n_neurons_1, n_neurons_2))
+        W_12_temp = np.random.uniform(-1, 1, (n_neurons_2, n_neurons_1))
+
+        # To ensure we have a square matrix, let's zero-fill the remaining elements
+        zeros = np.zeros((max(n_neurons_1, n_neurons_2), max(n_neurons_1, n_neurons_2)))
+        zeros[:n_neurons_2, :n_neurons_1] = W_12_temp
 
         # Again, we need to scale the connectivity matrix
-        self.W_12 = W_12_temp / np.max(np.abs(np.linalg.eigvals(W_12_temp)))
+        self.W_12 = W_12_temp / np.max(np.abs(np.linalg.eigvals(zeros)))
         self.W_12 = torch.tensor(self.W_12, dtype=torch.float32, device='cuda')
 
         # We will use another ridge regression model for the readout layer
@@ -70,6 +74,12 @@ class HierarchyESNCuda:
         self.previous_states = []
 
         print(f"HierarchyESN initialised with leakage_rate_1: {leakage_rate_1}, spectral_radius_1: {spectral_radius_1}, gamma_1: {gamma_1}, n_neurons_1: {n_neurons_1}, leakage_rate_2: {leakage_rate_2}, spectral_radius_2: {spectral_radius_2}, gamma_2: {gamma_2}, n_neurons_2: {n_neurons_2}")
+
+        # print(f"Shape of W_in_1: {W_in_1.shape}")
+        # print(f"Shape of W_in_2: {W_in_2.shape}")
+        # print(f"Shape of W_res_1: {self.W_res_1.shape}")
+        # print(f"Shape of W_res_2: {self.W_res_2.shape}")
+        # print(f"Shape of W_12: {self.W_12.shape}")
 
     def recurrent_unit(self, x, pbar=None):
         state_1 = torch.zeros((self.N_1, 1), device='cuda')
@@ -92,9 +102,18 @@ class HierarchyESNCuda:
                     # h_2(t+1) = h_2(t) * leakage_rate_2  + (1 - leakage_rate_2) * tanh((gamma_2 * W_in_2 * x(t)) + (spectral_radius_2 * W_res_2 * h_2(t)) + (W_12 * h_1(t)) + bias_2)
 
                     #non_linear_1 = np.tanh((self.gamma_1 * self.W_in_1 @ x[i].reshape(-1, 1)) + (self.spectral_radius_1 * self.W_res_1 @ state1))
-                    non_linear_1 = torch.tanh(torch.add((torch.mul(self.gamma_1, torch.matmul(self.W_in_1, x_cuda[i].reshape(-1, 1)))), (torch.mul(self.spectral_radius_1, torch.matmul(self.W_res_1, state_1)))))
+                    w_in_1_by_x = torch.matmul(self.W_in_1, x_cuda[i].reshape(-1, 1))
+                    w_res_1_by_state_1 = torch.matmul(self.W_res_1, state_1)
+
+                    non_linear_1 = torch.tanh((torch.mul(self.gamma_1, w_in_1_by_x)) + (torch.mul(self.spectral_radius_1, w_res_1_by_state_1)))
+
                     #non_linear_2 = np.tanh((self.gamma_2 * self.W_in_2 @ x[i].reshape(-1, 1)) + (self.spectral_radius_2 * self.W_res_2 @ state2) + (self.W_12 @ state1))
-                    non_linear_2 = torch.tanh(torch.add(torch.add(torch.mul(self.gamma_2, torch.matmul(self.W_in_2, x_cuda[i].reshape(-1, 1))), torch.mul(self.spectral_radius_2, torch.matmul(self.W_res_2, state_2))), torch.matmul(self.W_12, state_1)))
+                    w_in_2_by_x = torch.matmul(self.W_in_2, x_cuda[i].reshape(-1, 1))
+                    w_res_2_by_state_2 = torch.matmul(self.W_res_2, state_2)
+                    # The shapes are (n_neurons_1, n_neurons_2) and (n_neurons_1, 1), so we need to transpose the second matrix
+                    # An example is (400x100) and (1x400)
+                    w_12_by_state_1 = torch.matmul(self.W_12, state_1)
+                    non_linear_2 = torch.tanh((torch.mul(self.gamma_2, w_in_2_by_x)) + (torch.mul(self.spectral_radius_2, w_res_2_by_state_2) + w_12_by_state_1))
 
                     #state_1 = (state1 * self.leakage_rate_1) + ((1 - self.leakage_rate_1) * non_linear_1)
                     state_1 = torch.add(torch.mul(state_1, self.leakage_rate_1), torch.mul((1 - self.leakage_rate_1), non_linear_1))
