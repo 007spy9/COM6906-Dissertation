@@ -8,7 +8,7 @@ from tqdm import tqdm
 import torch
 
 class HierarchyESNCuda:
-    def __init__(self, leakage_rate_1, spectral_radius_1, gamma_1, n_neurons_1, W_in_1, leakage_rate_2, spectral_radius_2, gamma_2, n_neurons_2, W_in_2, class_weights=None, is_optimising=False, seed=None):
+    def __init__(self, leakage_rate_1, spectral_radius_1, gamma_1, n_neurons_1, W_in_1, sparsity_1, leakage_rate_2, spectral_radius_2, gamma_2, n_neurons_2, W_in_2, sparsity_2, class_weights=None, is_optimising=False, seed=None):
         print(tf.config.list_physical_devices('GPU'))
         print(f"Is CUDA available: {torch.cuda.is_available()}")
 
@@ -32,8 +32,11 @@ class HierarchyESNCuda:
         self.gamma_1 = torch.tensor(gamma_1, dtype=torch.float32, device='cuda')
         self.N_1 = n_neurons_1
         self.W_in_1 = torch.tensor(W_in_1, dtype=torch.float32, device='cuda')
+        self.sparsity_1 = sparsity_1
 
+        mask_1 = np.random.choice([0, 1], size=(n_neurons_1, n_neurons_1), p=[1 - sparsity_1, sparsity_1])
         W_res_temp_1 = np.random.uniform(-1, 1, (n_neurons_1, n_neurons_1))
+        W_res_temp_1 *= mask_1
 
         res_eigenvalues_1 = np.linalg.eigvals(W_res_temp_1)
 
@@ -47,8 +50,11 @@ class HierarchyESNCuda:
         self.gamma_2 = torch.tensor(gamma_2, dtype=torch.float32, device='cuda')
         self.N_2 = n_neurons_2
         self.W_in_2 = torch.tensor(W_in_2, dtype=torch.float32, device='cuda')
+        self.sparsity_2 = sparsity_2
 
+        mask_2 = np.random.choice([0, 1], size=(n_neurons_2, n_neurons_2), p=[1 - sparsity_2, sparsity_2])
         W_res_temp_2 = np.random.uniform(-1, 1, (n_neurons_2, n_neurons_2))
+        W_res_temp_2 *= mask_2
 
         res_eigenvalues_2 = np.linalg.eigvals(W_res_temp_2)
 

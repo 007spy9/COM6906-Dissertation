@@ -1,6 +1,7 @@
 import gc
 
 import numpy as np
+import librosa
 
 
 class DataPreprocessor:
@@ -111,6 +112,115 @@ class DataPreprocessor:
         print(f"Fourier data shape: {fourier_dataset.shape}")
 
         return fourier_dataset
+
+    def spectrogram_data(self, x_data, y_data, n_fft=2048, stride=512, reshape=True):
+        '''
+        Convert the data into a spectrogram representation.
+        The n_fft and stride parameters should ideally be powers of 2 for efficiency.
+        :param x_data: The features that are to be converted
+        :param y_data: The labels for the data (one label per sample)
+        :param n_fft: The number of samples to use for the fourier transform (window size)
+        :param stride: The stride between each fourier transform in samples (hop length)
+        :param reshape: Boolean value indicating if the data should be reshaped to a format that can be used for training or left as a 3D array
+        :return: A tuple of the spectrogram data and the labels (x_data_spectrogram, y_data_spectrogram)
+        '''
+
+        temp_spectrograms = []
+
+        max_time_frames = 0
+
+        # Let's apply the fourier transform to each feature
+        for i in range(x_data.shape[1]):
+            spectrogram = np.abs(librosa.stft(x_data[:, i], n_fft=n_fft, hop_length=stride)) ** 2
+            temp_spectrograms.append(spectrogram)
+            max_time_frames = max(max_time_frames, spectrogram.shape[1])
+
+        spectrogram_dataset = np.zeros((max_time_frames, n_fft // 2 + 1, x_data.shape[1]))
+
+        for i, spectrogram in enumerate(temp_spectrograms):
+            # Pad the spectrogram with zeros if the number of time frames is less than the maximum
+            if spectrogram.shape[1] < max_time_frames:
+                spectrogram = np.pad(spectrogram, ((0, 0), (0, max_time_frames - spectrogram.shape[1])))
+
+            spectrogram_dataset[:spectrogram.shape[1], :, i] = spectrogram.T
+
+        # We also need to adjust the labels to match the shape of the spectrogram data
+        # As the labels are for each sample, we need to determine the label for each time frame in the spectrogram
+        # We can do this by taking the most common label for each time frame
+        # Each time frame is of length n_nfft // 2 + 1, and the labels for each frame will be at the index
+        # x[i * stride : i * stride + n_fft // 2 + 1] where i is the time frame index
+
+        # For the current x dataset, we will iterate through each time frame
+        y_data_frames = np.zeros(spectrogram_dataset.shape[0])
+        for t in range(len(spectrogram_dataset)):
+            start = t * stride
+            end = start + n_fft // 2 + 1
+            labels = y_data[start:end]
+            most_common_label = np.bincount(labels).argmax()
+            y_data_frames[t] = most_common_label
+
+        # As the spectrogram data is 3D, we need to reshape it to 2D
+        # The shape of the spectrogram data is (n_frames, n_freq_bins, n_features)
+        # We will reshape it to (n_frames, n_freq_bins * n_features)
+        # This will allow us to train the model on the spectrogram data
+
+        if reshape:
+            n_frames = spectrogram_dataset.shape[0]
+            n_freq_bins = spectrogram_dataset.shape[1]
+            n_features = spectrogram_dataset.shape[2]
+            spectrogram_dataset = spectrogram_dataset.reshape(n_frames, n_freq_bins * n_features)
+
+        x_data_spectrogram = spectrogram_dataset
+
+        y_data_spectrogram = y_data_frames
+
+        print(f"Spectrogram data shape: {x_data_spectrogram.shape}, {y_data_spectrogram.shape}")
+
+        return x_data_spectrogram, y_data_spectrogram
+
+    def spectrogram_predictions_to_samples(self, y_pred, n_samples, n_fft, stride):
+        '''
+        Convert the one-hot encoded predictions from the spectrogram data back to the original samples using an accumulation method.
+        Both input and output will be one-hot encoded.
+        :param y_pred: The predictions from the model in the shape (n_frames, n_classes)
+        :param n_samples: The number of samples in the original data (before the spectrogram transformation)
+        :param n_fft: The window size from the spectrogram transformation
+        :param stride: The stride from the spectrogram transformation
+        :return: The one-hot encoded samples in the shape (n_samples, n_classes)
+        '''
+        n_frames, n_classes = y_pred.shape
+        y_accumulations = np.zeros((n_samples, n_classes), dtype=float)
+        y_counts = np.zeros(n_samples, dtype=int)
+
+        for f in range(n_frames):
+            start = f * stride
+            end = start + n_fft
+
+            # Bounds checking
+            if end > n_samples:
+                end = n_samples
+
+            # Accumulate the predictions for the range[start:end]
+            for i in range(start, end):
+                y_accumulations[i] += y_pred[f]
+                y_counts[i] += 1
+
+        # Normalise the accumulator by contribution count
+        # Avoid division by zero
+        y_counts[y_counts == 0] = 1
+
+        # Normalise the accumulator along the class axis
+        y_accumulations /= y_counts[:, None]
+
+        # Convert the accumulator to the most likely class for each sample
+        y_samples = np.argmax(y_accumulations, axis=1)
+
+        y_samples_onehot = np.zeros_like(y_accumulations)
+        y_samples_onehot[np.arange(n_samples), y_samples] = 1
+
+        print(f"Cumulative samples shape: {y_samples_onehot.shape}")
+
+        return y_samples_onehot
 
     def pipeline(self, step_names, x_data, y_data, params):
         '''

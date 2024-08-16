@@ -175,7 +175,7 @@ class DatasetPreparation:
         # --------------------------
         # Normalisation
         # --------------------------
-        scaler = MinMaxScaler()
+        scaler = MinMaxScaler(feature_range=(-1, 1))
 
         scaler.fit(x_train)
 
