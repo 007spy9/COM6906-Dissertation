@@ -113,7 +113,7 @@ class DataPreprocessor:
 
         return fourier_dataset
 
-    def spectrogram_data(self, x_data, y_data, n_fft=2048, stride=512, reshape=True):
+    def spectrogram_data(self, x_data, y_data, n_fft=2048, stride=512, reshape=True, encode_labels=False, label_encoder=None):
         '''
         Convert the data into a spectrogram representation.
         The n_fft and stride parameters should ideally be powers of 2 for efficiency.
@@ -124,6 +124,9 @@ class DataPreprocessor:
         :param reshape: Boolean value indicating if the data should be reshaped to a format that can be used for training or left as a 3D array
         :return: A tuple of the spectrogram data and the labels (x_data_spectrogram, y_data_spectrogram)
         '''
+
+        if encode_labels and label_encoder is None:
+            raise ValueError("Label encoder must be provided if encoding labels")
 
         temp_spectrograms = []
 
@@ -173,6 +176,9 @@ class DataPreprocessor:
         x_data_spectrogram = spectrogram_dataset
 
         y_data_spectrogram = y_data_frames
+
+        if encode_labels:
+            y_data_spectrogram = label_encoder.transform(y_data_spectrogram.reshape(-1, 1)).toarray()
 
         print(f"Spectrogram data shape: {x_data_spectrogram.shape}, {y_data_spectrogram.shape}")
 
@@ -241,6 +247,8 @@ class DataPreprocessor:
                 temp_x_data, temp_y_data = self.exponential_moving_average(params[i], temp_x_data, temp_y_data)
             elif step == 'fourier_smoothing':
                 temp_x_data = self.fourier_smoothing(temp_x_data, params[i])
+            elif step == 'spectrogram_data':
+                temp_x_data, temp_y_data = self.spectrogram_data(temp_x_data, temp_y_data, *params[i])
 
         return temp_x_data, temp_y_data
 
@@ -249,4 +257,4 @@ class DataPreprocessor:
         Returns a list of names of the available methods
         :return: A list of strings
         '''
-        return ['buffered_windows', 'exponential_moving_average', 'fourier_smoothing']
+        return ['buffered_windows', 'exponential_moving_average', 'fourier_smoothing', 'spectrogram_data']

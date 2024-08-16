@@ -8,3 +8,4 @@ seaborn
 hyperopt
 pymongo
 gpyopt
+librosa
