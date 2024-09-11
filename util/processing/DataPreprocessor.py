@@ -100,6 +100,7 @@ class DataPreprocessor:
         # For each feature, we will apply the fourier transform
         fourier_dataset = np.zeros_like(temp_data)
         for i in range(temp_data.shape[1]):
+            # Based on the low-pass filter defined at https://colab.research.google.com/drive/10VADEg8F5t_FuryEf_ObFfeIFwX-CxII?usp=sharing
             transformed_data = np.fft.rfft(temp_data[:, i])
             frequencies = np.fft.rfftfreq(temp_data.shape[0])
             transformed_data[frequencies > threshold] = 0
